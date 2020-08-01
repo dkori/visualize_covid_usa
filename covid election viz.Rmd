@@ -1,5 +1,10 @@
 ---
 title: "covid by 2016 Pres vote"
+knit: (function(input_file, encoding) {
+  out_dir <- 'docs';
+  rmarkdown::render(input_file,
+ encoding=encoding,
+ output_file=file.path(dirname(input_file), out_dir, 'index.html'))})
 author: "Devraj Kori"
 date: "8/1/2020"
 output: html_document
