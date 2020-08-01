@@ -1,0 +1,119 @@
+---
+title: "covid by 2016 Pres vote"
+author: "Devraj Kori"
+date: "8/1/2020"
+output: html_document
+---
+```{css}
+.invert {
+  background-color: black;
+  text-color: white;
+  
+}
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(ggplot2)
+library(sf)
+library(tidycensus)
+library(scales)
+library(gridExtra)
+options(tigris_use_cache = TRUE)
+```
+
+```{r data_prep, include=FALSE}
+# read in NYT covid data
+US<-read_csv(url("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv"))%>%
+  #filter out territories
+  filter(!state%in%c("Puerto Rico","Virgin Islands","Guam","Northern Mariana Islands"))
+
+acs18_vars<-load_variables(year=2017,dataset="acs5")
+census_sf1_vars<-load_variables(year=2010,dataset="sf1")
+
+#read in 2016 election results
+election16<-read_csv(url("https://raw.githubusercontent.com/john-guerra/US_Elections_Results/master/US%20presidential%20election%20results%20by%20county.csv"))%>%
+  #make fips character
+  mutate(GEOID= case_when(combined_fips<=9999~paste0("0",combined_fips),
+                          TRUE~paste0(combined_fips)))%>%
+  #since some states have multiple rows per county, aggregate up to County level
+  group_by(GEOID,county_name,state_abbr)%>%
+  summarise(votes_total = sum(votes_total),
+            votes_dem = sum(votes_dem),
+            votes_gop = sum(votes_gop))%>%
+  ungroup()%>%
+  #recalculate percentages
+  mutate(per_dem = votes_dem/votes_total,
+         per_gop = votes_gop/votes_total)
+
+#merge rural_election with covid data
+with_election<-US%>%
+  inner_join(election16,by=c("fips" = "GEOID"))%>%
+  mutate(trump_margin=per_gop-per_dem)
+
+```
+
+
+```{r covid_pres_bar_charts,echo=FALSE,class.source="invert"}
+new_covid_num<-with_election%>%
+  #filter(state_abbr!="NY")%>%
+  group_by(fips)%>%
+  arrange(date,.by_group = TRUE)%>%
+  mutate(new_cases = cases - lag(cases,default = 0))%>%
+  ungroup()%>%
+  #remove recovered cases
+  mutate(new_cases = case_when(new_cases<0 ~ 0,
+                               TRUE ~ new_cases))%>%
+  mutate(trump_margin_binned = case_when(trump_margin<(-.2)~(-.2),
+                                         trump_margin>(.2)~.2,
+                                         TRUE~trump_margin))%>%
+  group_by(date,trump_margin_binned)%>%
+  summarise(new_cases=sum(new_cases))%>%
+  ungroup()%>%
+  filter(date>=as.Date("02-26-2020",format("%m-%d-%Y")))%>%
+  ggplot(aes(x=date,y=new_cases,fill=trump_margin_binned))+
+  geom_bar(stat="identity",position="stack",width=1)+
+  scale_fill_gradient2(low="blue",mid="grey",high="red",label=percent)+
+  labs(y="Net increase in\nCOVID cases",fill="County Trump\nvictory margin",
+       x = NULL,
+       title = "Net daily increase in COVID cases by county 2016 pres vote (excludes NYC)")+
+  guides(fill = guide_colourbar(barwidth = 15, barheight = 1))+
+  theme_minimal()+
+  theme(legend.position="none")+
+  scale_y_continuous(#label=comma
+    )
+
+new_covid_pct<-with_election%>%
+  #filter(state_abbr!="NY")%>%
+  group_by(fips)%>%
+  arrange(date,.by_group = TRUE)%>%
+  mutate(new_cases = cases - lag(cases,default = 0))%>%
+  ungroup()%>%
+  #remove recovered cases
+  mutate(new_cases = case_when(new_cases<0 ~ 0,
+                               TRUE ~ new_cases))%>%
+  mutate(trump_margin_binned = case_when(trump_margin<(-.2)~(-.2),
+                                         trump_margin>(.2)~.2,
+                                         TRUE~trump_margin))%>%
+  group_by(date,trump_margin_binned)%>%
+  summarise(new_cases=sum(new_cases))%>%
+  ungroup()%>%
+  filter(date>=as.Date("02-26-2020",format("%m-%d-%Y")))%>%
+  ggplot(aes(x=date,y=new_cases,fill=trump_margin_binned))+
+  geom_bar(stat="identity",position="fill",width=1)+
+  scale_fill_gradient2(low="blue",mid="grey",high="red",label=percent)+
+  labs(y="Share of COVID\ncase increase",fill="Trump victory\nmargin",
+       x=NULL#,
+       #title = "Daily COVID case increases by 2016 Pres vote\n(excludes NYC)"
+       )+
+  guides(fill = guide_colourbar(barwidth = 15, barheight = 1))+
+  theme_minimal()+
+  theme(legend.position="bottom")+
+  scale_y_continuous(label=percent_format(suffix="% "))
+
+
+grid.arrange(new_covid_num,new_covid_pct)
+```

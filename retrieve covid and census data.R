@@ -7,7 +7,7 @@ library(tidycensus)
 library(scales)
 options(tigris_use_cache = TRUE)
 #retrieve latest COVID data
-US<-read_csv(url("https://raw.githubusercontent.com/beoutbreakprepared/nCoV2019/master/latest_data/latestdata.csv"))%>%
+US<-read_csv(url("https://raw.githubusercontent.com/nytimes/covid-19-data/blob/master/us-counties.csv"))%>%
   #remove missing values in longitude
   filter(!is.na(longitude))%>%
   #limit just to the US
