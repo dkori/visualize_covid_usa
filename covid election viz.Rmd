@@ -9,13 +9,7 @@ author: "Devraj Kori"
 date: "8/1/2020"
 output: html_document
 ---
-```{css}
-.invert {
-  background-color: black;
-  text-color: white;
-  
-}
-```
+
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -61,8 +55,7 @@ with_election<-US%>%
 
 ```
 
-
-```{r covid_pres_bar_charts,echo=FALSE,class.source="invert"}
+```{r covid_pres_bar_charts_dark,echo=FALSE}
 new_covid_num<-with_election%>%
   #filter(state_abbr!="NY")%>%
   group_by(fips)%>%
@@ -84,10 +77,14 @@ new_covid_num<-with_election%>%
   scale_fill_gradient2(low="blue",mid="grey",high="red",label=percent)+
   labs(y="Net increase in\nCOVID cases",fill="County Trump\nvictory margin",
        x = NULL,
-       title = "Net daily increase in COVID cases by county 2016 pres vote (excludes NYC)")+
+       title = "Daily increase in COVID cases by county 2016 pres vote (excludes NYC)")+
   guides(fill = guide_colourbar(barwidth = 15, barheight = 1))+
   theme_minimal()+
-  theme(legend.position="none")+
+  theme(
+    plot.background = element_rect(fill = "black",colour="white"),
+    panel.background = element_rect(fill = "black", colour="grey"),
+    legend.position="none",
+    title = element_text(colour="white"))+
   scale_y_continuous(#label=comma
     )
 
@@ -116,7 +113,83 @@ new_covid_pct<-with_election%>%
        )+
   guides(fill = guide_colourbar(barwidth = 15, barheight = 1))+
   theme_minimal()+
-  theme(legend.position="bottom")+
+  theme(
+    plot.background = element_rect(fill = "black",colour="white"),
+    panel.background = element_rect(fill = "black", colour="grey"),
+    legend.position="bottom",
+    legend.text = element_text(colour="white"),
+    title = element_text(colour="white"))+
+  scale_y_continuous(label=percent_format(suffix="% "))
+
+
+grid.arrange(new_covid_num,new_covid_pct)
+```
+
+```{r covid_pres_bar_charts,echo=FALSE}
+new_covid_num<-with_election%>%
+  #filter(state_abbr!="NY")%>%
+  group_by(fips)%>%
+  arrange(date,.by_group = TRUE)%>%
+  mutate(new_cases = cases - lag(cases,default = 0))%>%
+  ungroup()%>%
+  #remove recovered cases
+  mutate(new_cases = case_when(new_cases<0 ~ 0,
+                               TRUE ~ new_cases))%>%
+  mutate(trump_margin_binned = case_when(trump_margin<(-.2)~(-.2),
+                                         trump_margin>(.2)~.2,
+                                         TRUE~trump_margin))%>%
+  group_by(date,trump_margin_binned)%>%
+  summarise(new_cases=sum(new_cases))%>%
+  ungroup()%>%
+  filter(date>=as.Date("02-26-2020",format("%m-%d-%Y")))%>%
+  ggplot(aes(x=date,y=new_cases,fill=trump_margin_binned))+
+  geom_bar(stat="identity",position="stack",width=1)+
+  scale_fill_gradient2(low="blue",mid="grey",high="red",label=percent)+
+  labs(y="Net increase in\nCOVID cases",fill="County Trump\nvictory margin",
+       x = NULL,
+       title = "Daily increase in COVID cases by county 2016 pres vote (excludes NYC)")+
+  guides(fill = guide_colourbar(barwidth = 15, barheight = 1))+
+  theme_minimal()+
+  theme(
+    #plot.background = element_rect(fill = "black",colour="white"),
+    #panel.background = element_rect(fill = "black", colour="grey"),
+    legend.position="none",
+    #title = element_text(colour="white")
+    )+
+  scale_y_continuous(#label=comma
+    )
+
+new_covid_pct<-with_election%>%
+  #filter(state_abbr!="NY")%>%
+  group_by(fips)%>%
+  arrange(date,.by_group = TRUE)%>%
+  mutate(new_cases = cases - lag(cases,default = 0))%>%
+  ungroup()%>%
+  #remove recovered cases
+  mutate(new_cases = case_when(new_cases<0 ~ 0,
+                               TRUE ~ new_cases))%>%
+  mutate(trump_margin_binned = case_when(trump_margin<(-.2)~(-.2),
+                                         trump_margin>(.2)~.2,
+                                         TRUE~trump_margin))%>%
+  group_by(date,trump_margin_binned)%>%
+  summarise(new_cases=sum(new_cases))%>%
+  ungroup()%>%
+  filter(date>=as.Date("02-26-2020",format("%m-%d-%Y")))%>%
+  ggplot(aes(x=date,y=new_cases,fill=trump_margin_binned))+
+  geom_bar(stat="identity",position="fill",width=1)+
+  scale_fill_gradient2(low="blue",mid="grey",high="red",label=percent)+
+  labs(y="Share of COVID\ncase increase",fill="Trump victory\nmargin",
+       x=NULL#,
+       #title = "Daily COVID case increases by 2016 Pres vote\n(excludes NYC)"
+       )+
+  guides(fill = guide_colourbar(barwidth = 15, barheight = 1))+
+  theme_minimal()+
+  theme(
+    #plot.background = element_rect(fill = "black",colour="white"),
+    #panel.background = element_rect(fill = "black", colour="grey"),
+    legend.position="bottom",
+    #title = element_text(colour="white")
+    )+
   scale_y_continuous(label=percent_format(suffix="% "))
 
 
