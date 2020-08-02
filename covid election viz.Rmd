@@ -34,13 +34,13 @@ acs18_vars<-load_variables(year=2017,dataset="acs5")
 census_sf1_vars<-load_variables(year=2010,dataset="sf1")
 
 #read in 2016 election results
-election16<-read_csv(url("https://raw.githubusercontent.com/john-guerra/US_Elections_Results/master/US%20presidential%20election%20results%20by%20county.csv"))%>%
+election16<-read_csv(url("https://raw.githubusercontent.com/john-guerra/US_Elections_Results/master/2016_US_County_Level_Presidential_Results.csv"))%>%
   #make fips character
   mutate(GEOID= case_when(combined_fips<=9999~paste0("0",combined_fips),
                           TRUE~paste0(combined_fips)))%>%
   #since some states have multiple rows per county, aggregate up to County level
   group_by(GEOID,county_name,state_abbr)%>%
-  summarise(votes_total = sum(votes_total),
+  summarise(votes_total = sum(total_votes),
             votes_dem = sum(votes_dem),
             votes_gop = sum(votes_gop))%>%
   ungroup()%>%
@@ -53,6 +53,25 @@ with_election<-US%>%
   inner_join(election16,by=c("fips" = "GEOID"))%>%
   mutate(trump_margin=per_gop-per_dem)
 
+
+#create a function that returns percent rural for every county
+retrieve_urban<-function(state){
+  rural_split<-get_decennial(year=2010,
+                             state=state,
+                             variables=c("total"="P002001","urban"="P002003"),
+                             geography="county")%>%
+    #select("GEOID","variable","value")%>%
+    #spread the data to make it wide
+    spread(key="variable",value="value")
+}
+
+census_urban<-do.call(rbind,
+                      lapply(unique(US$state),retrieve_urban))
+
+with_urban<-US%>%
+  inner_join(census_urban,by=c("fips" = "GEOID"))%>%
+  filter(!is.na(urban))%>%
+  mutate(pct_urban = urban/total)
 ```
 
 ```{r covid_pres_bar_charts_dark,echo=FALSE}
@@ -82,7 +101,8 @@ new_covid_num<-with_election%>%
   theme_minimal()+
   theme(
     plot.background = element_rect(fill = "black",colour="white"),
-    panel.background = element_rect(fill = "black", colour="grey"),
+    panel.background = element_rect(fill = "black", colour="white"),
+    panel.grid = element_line(colour="dimgray"),
     legend.position="none",
     title = element_text(colour="white"))+
   scale_y_continuous(#label=comma
@@ -115,7 +135,8 @@ new_covid_pct<-with_election%>%
   theme_minimal()+
   theme(
     plot.background = element_rect(fill = "black",colour="white"),
-    panel.background = element_rect(fill = "black", colour="grey"),
+    panel.background = element_rect(fill = "black", colour="white"),
+    panel.grid = element_line(colour="dimgray"),
     legend.position="bottom",
     legend.text = element_text(colour="white"),
     title = element_text(colour="white"))+
@@ -194,4 +215,131 @@ new_covid_pct<-with_election%>%
 
 
 grid.arrange(new_covid_num,new_covid_pct)
+```
+
+
+```{r covid_deaths_pres,echo=FALSE}
+options(scipen=999)
+deaths_num<-with_election%>%
+  #filter(state_abbr!="NY")%>%
+  mutate(trump_margin_binned = case_when(trump_margin<(-.2)~(-.2),
+                                         trump_margin>(.2)~.2,
+                                         TRUE~trump_margin))%>%
+  group_by(date,trump_margin_binned)%>%
+  summarise(deaths=sum(deaths))%>%
+  ungroup()%>%
+  filter(date>=as.Date("02-26-2020",format("%m-%d-%Y")))%>%
+  ggplot(aes(x=date,y=deaths,fill=trump_margin_binned))+
+  geom_bar(stat="identity",position="stack",width=1)+
+  scale_fill_gradient2(low="blue",mid="grey",high="red",label=percent)+
+  labs(y="COVID Deaths",fill="County Trump\nvictory margin",
+       x = NULL,
+       title = "Daily COVID Deaths by county 2016 pres vote (excludes NYC)")+
+  guides(fill = guide_colourbar(barwidth = 15, barheight = 1))+
+  theme_minimal()+
+  theme(
+    #plot.background = element_rect(fill = "black",colour="white"),
+    #panel.background = element_rect(fill = "black", colour="grey"),
+    legend.position="none",
+    #title = element_text(colour="white")
+    )+
+  scale_y_continuous(#label=comma
+    )
+
+deaths_pct<-with_election%>%
+
+  mutate(trump_margin_binned = case_when(trump_margin<(-.2)~(-.2),
+                                         trump_margin>(.2)~.2,
+                                         TRUE~trump_margin))%>%
+  group_by(date,trump_margin_binned)%>%
+  summarise(deaths=sum(deaths))%>%
+  ungroup()%>%
+  filter(date>=as.Date("02-26-2020",format("%m-%d-%Y")))%>%
+  ggplot(aes(x=date,y=deaths,fill=trump_margin_binned))+
+  geom_bar(stat="identity",position="fill",width=1)+
+  scale_fill_gradient2(low="blue",mid="grey",high="red",label=percent)+
+  labs(y="Share of COVID deaths",fill="Trump victory\nmargin",
+       x=NULL#,
+       #title = "Daily COVID case increases by 2016 Pres vote\n(excludes NYC)"
+       )+
+  guides(fill = guide_colourbar(barwidth = 15, barheight = 1))+
+  theme_minimal()+
+  theme(
+    #plot.background = element_rect(fill = "black",colour="white"),
+    #panel.background = element_rect(fill = "black", colour="grey"),
+    legend.position="bottom",
+    #title = element_text(colour="white")
+    )+
+  scale_y_continuous(label=percent_format(suffix="% "))
+
+
+grid.arrange(deaths_num,deaths_pct)
+```
+
+
+```{r covid_urban,echo=FALSE}
+new_covid_urban<-with_urban%>%
+  #filter(state_abbr!="NY")%>%
+  group_by(fips)%>%
+  arrange(date,.by_group = TRUE)%>%
+  mutate(new_cases = cases - lag(cases,default = 0))%>%
+  ungroup()%>%
+  #remove recovered cases
+  mutate(new_cases = case_when(new_cases<0 ~ 0,
+                               TRUE ~ new_cases))%>%
+  group_by(date,pct_urban)%>%
+  summarise(new_cases=sum(new_cases))%>%
+  ungroup()%>%
+  filter(date>=as.Date("02-26-2020",format("%m-%d-%Y")))%>%
+  ggplot(aes(x=date,y=new_cases,fill=pct_urban))+
+  geom_bar(stat="identity",position="stack",width=1)+
+  #scale_fill_gradient2(low="blue",mid="grey",high="red",label=percent)+
+  scale_fill_viridis_c(direction=(-1))+
+  labs(y="Net increase in\nCOVID cases",fill="County Urban\nPop. Share",
+       x = NULL,
+       title = "Daily increase in COVID cases by County Urban Population (excludes NYC)")+
+  guides(fill = guide_colourbar(barwidth = 15, barheight = 1))+
+  theme_minimal()+
+  theme(
+    #plot.background = element_rect(fill = "black",colour="white"),
+    #panel.background = element_rect(fill = "black", colour="grey"),
+    legend.position="none",
+    #title = element_text(colour="white")
+    )+
+  scale_y_continuous(#label=comma
+    )
+
+new_covid_pct_urban<-with_urban%>%
+  #filter(state_abbr!="NY")%>%
+  group_by(fips)%>%
+  arrange(date,.by_group = TRUE)%>%
+  mutate(new_cases = cases - lag(cases,default = 0))%>%
+  ungroup()%>%
+  #remove recovered cases
+  mutate(new_cases = case_when(new_cases<0 ~ 0,
+                               TRUE ~ new_cases))%>%
+  group_by(date,pct_urban)%>%
+  summarise(new_cases=sum(new_cases))%>%
+  ungroup()%>%
+  filter(date>=as.Date("02-26-2020",format("%m-%d-%Y")))%>%
+  ggplot(aes(x=date,y=new_cases,fill=pct_urban))+
+  geom_bar(stat="identity",position="fill",width=1)+
+  #scale_fill_gradient2(low="blue",mid="grey",high="red",label=percent)+
+  scale_fill_viridis_c(direction=(-1))+
+  labs(y="Share of COVID\ncase increase",fill="County Urban\nPop. Share",
+       x=NULL#,
+       #title = "Daily COVID case increases by 2016 Pres vote\n(excludes NYC)"
+       )+
+  guides(fill = guide_colourbar(barwidth = 15, barheight = 1))+
+  theme_minimal()+
+  theme(
+    #plot.background = element_rect(fill = "black",colour="white"),
+    #panel.background = element_rect(fill = "black", colour="grey"),
+    legend.position="bottom",
+    #title = element_text(colour="white")
+    )+
+  scale_y_continuous(label=percent_format(suffix="% "))
+
+
+grid.arrange(new_covid_urban,new_covid_pct_urban)
 ```
