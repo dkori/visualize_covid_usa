@@ -130,6 +130,7 @@ new_covid_pct<-with_election%>%
   labs(y="Share of COVID\ncase increase",fill="Trump victory\nmargin",
        x=NULL#,
        #title = "Daily COVID case increases by 2016 Pres vote\n(excludes NYC)"
+       #caption = "Sources: https://github.com/john-guerra/US_Elections_Results,https://github.com/nytimes/covid-19-data"
        )+
   guides(fill = guide_colourbar(barwidth = 15, barheight = 1))+
   theme_minimal()+
@@ -202,6 +203,7 @@ new_covid_pct<-with_election%>%
   labs(y="Share of COVID\ncase increase",fill="Trump victory\nmargin",
        x=NULL#,
        #title = "Daily COVID case increases by 2016 Pres vote\n(excludes NYC)"
+       #caption = "Sources: https://github.com/john-guerra/US_Elections_Results,https://github.com/nytimes/covid-19-data"
        )+
   guides(fill = guide_colourbar(barwidth = 15, barheight = 1))+
   theme_minimal()+
@@ -225,8 +227,13 @@ deaths_num<-with_election%>%
   mutate(trump_margin_binned = case_when(trump_margin<(-.2)~(-.2),
                                          trump_margin>(.2)~.2,
                                          TRUE~trump_margin))%>%
+  #filter(state_abbr!="NY")%>%
+  group_by(fips)%>%
+  arrange(date,.by_group = TRUE)%>%
+  mutate(new_deaths = deaths - lag(deaths,default = 0))%>%
+  ungroup()%>%
   group_by(date,trump_margin_binned)%>%
-  summarise(deaths=sum(deaths))%>%
+  summarise(deaths=sum(new_deaths))%>%
   ungroup()%>%
   filter(date>=as.Date("02-26-2020",format("%m-%d-%Y")))%>%
   ggplot(aes(x=date,y=deaths,fill=trump_margin_binned))+
@@ -251,10 +258,16 @@ deaths_pct<-with_election%>%
   mutate(trump_margin_binned = case_when(trump_margin<(-.2)~(-.2),
                                          trump_margin>(.2)~.2,
                                          TRUE~trump_margin))%>%
+  #filter(state_abbr!="NY")%>%
+  group_by(fips)%>%
+  arrange(date,.by_group = TRUE)%>%
+  mutate(new_deaths = deaths - lag(deaths,default = 0))%>%
+  ungroup()%>%
   group_by(date,trump_margin_binned)%>%
-  summarise(deaths=sum(deaths))%>%
+  summarise(deaths=sum(new_deaths))%>%
   ungroup()%>%
   filter(date>=as.Date("02-26-2020",format("%m-%d-%Y")))%>%
+  filter(deaths>=0)%>%
   ggplot(aes(x=date,y=deaths,fill=trump_margin_binned))+
   geom_bar(stat="identity",position="fill",width=1)+
   scale_fill_gradient2(low="blue",mid="grey",high="red",label=percent)+

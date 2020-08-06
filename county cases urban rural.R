@@ -139,23 +139,28 @@ with_election%>%
   ggplot(aes(x=date,y=new_cases,fill=trump_margin_binned))+
   geom_bar(stat="identity",position="stack",width=1)+
   scale_fill_gradient2(low="blue",mid="grey",high="red",label=percent)+
-  labs(x="date",y="Net increase in COVID cases",fill="County Trump\nvictory margin",
+  labs(y="Net increase in COVID cases",fill="County Trump\nvictory margin",
        title = "Daily COVID case increases by 2016 Pres vote\n(excludes NYC)")+
   guides(fill = guide_colourbar(barwidth = 15, barheight = 1))+
   theme_minimal()+
   theme(legend.position="bottom")+
   scale_y_continuous(label=comma)
 
-with_census%>%
+for_rural<-with_census%>%
   filter(!is.na(rural))%>%
   group_by(fips)%>%
   arrange(date,.by_group = TRUE)%>%
   mutate(new_cases = cases - lag(cases,default = 0))%>%
-  ungroup()%>%
+  ungroup()%>%  
+  #remove recovered cases
+  mutate(new_cases = case_when(new_cases<0 ~ 0,
+                             TRUE ~ new_cases))%>%
   #remove recovered cases
   #mutate(new_cases = case_when(new_cases<0 ~ 0,
   #                             TRUE ~ new_cases))%>%
-  mutate(pct_rural=rural/total)%>%
+  mutate(pct_rural=rural/total)
+median(for_rural$pct_rural)
+for_rural%>%
   group_by(date,pct_rural)%>%
   summarise(new_cases=sum(new_cases))%>%
   ungroup()%>%
