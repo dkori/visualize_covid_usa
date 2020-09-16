@@ -356,3 +356,187 @@ new_covid_pct_urban<-with_urban%>%
 
 grid.arrange(new_covid_urban,new_covid_pct_urban)
 ```
+
+
+```{r add_NYC, echo=FALSE, message=FALSE,warning=FALSE}
+# add in NYC 
+nyc_covid<-US%>%
+  filter(county=="New York City")%>%
+  mutate(fips="NYC")
+# calculate Trump share in NYC counties
+nyc_election<-election16%>%
+  filter(state_abbr=="NY")%>%
+  filter(county_name%in%c("New York County","Kings County","Bronx County","Richmond County", "Queens County"))%>%
+  summarise(votes_total = sum(votes_total),
+            votes_dem = sum(votes_dem),
+            votes_gop = sum(votes_gop))%>%
+  mutate(per_dem = votes_dem/votes_total,
+         per_gop = votes_gop/votes_total,
+         trump_margin=per_gop-per_dem,
+         fips="NYC")
+
+# comparison<-full_join(with_nyc%>%
+#                         #filter(state_abbr!="NY")%>%
+#                         group_by(fips)%>%
+#                         arrange(date,.by_group = TRUE)%>%
+#                         mutate(new_cases = cases - lag(cases,default = 0))%>%
+#                         ungroup()%>%
+#                         #remove recovered cases
+#                         mutate(new_cases = case_when(new_cases<0 ~ 0,
+#                                TRUE ~ new_cases))%>%
+#                         group_by(date)%>%
+#                         summarise(with_nyc_cases=sum(new_cases)),
+#                       with_election%>%
+#                         #filter(state_abbr!="NY")%>%
+#                         group_by(fips)%>%
+#                         arrange(date,.by_group = TRUE)%>%
+#                         mutate(new_cases = cases - lag(cases,default = 0))%>%
+#                         ungroup()%>%
+#                         #remove recovered cases
+#                         mutate(new_cases = case_when(new_cases<0 ~ 0,
+#                                TRUE ~ new_cases))%>%
+#                         group_by(date)%>%
+#                         summarise(without_nyc_cases=sum(new_cases))
+#     
+# )
+with_nyc<-nyc_covid%>%
+  inner_join(nyc_election)%>%
+  bind_rows(with_election)%>%
+  arrange(fips)
+
+with_nyc_covid_num<-with_nyc%>%
+  #filter(state_abbr!="NY")%>%
+  group_by(fips)%>%
+  arrange(date,.by_group = TRUE)%>%
+  mutate(new_cases = cases - lag(cases,default = 0))%>%
+  ungroup()%>%
+  #remove recovered cases
+  mutate(new_cases = case_when(new_cases<0 ~ 0,
+                               TRUE ~ new_cases))%>%
+  mutate(trump_margin_binned = case_when(trump_margin<(-.2)~(-.2),
+                                         trump_margin>(.2)~.2,
+                                         TRUE~trump_margin))%>%
+  group_by(date,trump_margin_binned)%>%
+  summarise(new_cases=sum(new_cases))%>%
+  ungroup()%>%
+  filter(date>=as.Date("02-26-2020",format("%m-%d-%Y")))%>%
+  ggplot(aes(x=date,y=new_cases,fill=trump_margin_binned))+
+  geom_bar(stat="identity",position="stack",width=1)+
+  scale_fill_gradient2(low="blue",mid="grey",high="red",label=percent)+
+  labs(y="Net increase in\nCOVID cases",fill="County Trump\nvictory margin",
+       x = NULL,
+       title = "Daily increase in COVID cases by county 2016 pres vote")+
+  guides(fill = guide_colourbar(barwidth = 15, barheight = 1))+
+  theme_minimal()+
+  theme(
+    #plot.background = element_rect(fill = "black",colour="white"),
+    #panel.background = element_rect(fill = "black", colour="white"),
+    #panel.grid = element_line(colour="dimgray"),
+    legend.position="none"#,
+    #title = element_text(colour="white")
+    )+
+  scale_y_continuous(#label=comma
+    )
+
+with_nyc_covid_pct<-with_nyc%>%
+  #filter(state_abbr!="NY")%>%
+  group_by(fips)%>%
+  arrange(date,.by_group = TRUE)%>%
+  mutate(new_cases = cases - lag(cases,default = 0))%>%
+  ungroup()%>%
+  #remove recovered cases
+  mutate(new_cases = case_when(new_cases<0 ~ 0,
+                               TRUE ~ new_cases))%>%
+  mutate(trump_margin_binned = case_when(trump_margin<(-.2)~(-.2),
+                                         trump_margin>(.2)~.2,
+                                         TRUE~trump_margin))%>%
+  group_by(date,trump_margin_binned)%>%
+  summarise(new_cases=sum(new_cases))%>%
+  ungroup()%>%
+  filter(date>=as.Date("02-26-2020",format("%m-%d-%Y")))%>%
+  ggplot(aes(x=date,y=new_cases,fill=trump_margin_binned))+
+  geom_bar(stat="identity",position="fill",width=1)+
+  scale_fill_gradient2(low="blue",mid="grey",high="red",label=percent)+
+  labs(y="Share of COVID\ncase increase",fill="Trump victory\nmargin",
+       x=NULL#,
+       #title = "Daily COVID case increases by 2016 Pres vote\n(excludes NYC)"
+       #caption = "Sources: https://github.com/john-guerra/US_Elections_Results,https://github.com/nytimes/covid-19-data"
+       )+
+  guides(fill = guide_colourbar(barwidth = 15, barheight = 1))+
+  theme_minimal()+
+  theme(
+    #plot.background = element_rect(fill = "black",colour="white"),
+    #panel.background = element_rect(fill = "black", colour="white"),
+    #panel.grid = element_line(colour="dimgray"),
+    legend.position="bottom"#,
+    #legend.text = element_text(colour="white"),
+    #title = element_text(colour="white")
+    )+
+  scale_y_continuous(label=percent_format(suffix="% "))
+
+
+grid.arrange(with_nyc_covid_num,with_nyc_covid_pct)
+
+
+```
+
+Chart plotting all covid cases, not just new cases (so accounting for deaths/recoveries)
+
+```{r total_covid_cases}
+with_nyc_covid_total_num<-with_nyc%>%
+  mutate(trump_margin_binned = case_when(trump_margin<(-.20)~(-.20),
+                                         trump_margin>(.20)~.20,
+                                         TRUE~trump_margin))%>%
+  group_by(date,trump_margin_binned)%>%
+  summarise(cases=sum(cases))%>%
+  ungroup()%>%
+  filter(date>=as.Date("02-26-2020",format("%m-%d-%Y")))%>%
+  ggplot(aes(x=date,y=cases,fill=trump_margin_binned))+
+  geom_bar(stat="identity",position="stack",width=1)+
+  scale_fill_gradient2(low="blue",mid="grey",high="red",label=percent)+
+  labs(y="COVID Cases",fill="County Trump\nvictory margin",
+       x = NULL,
+       title = "County-level Daily COVID Cases by 2016 Presidential vote margin")+
+  guides(fill = guide_colourbar(barwidth = 15, barheight = 1))+
+  theme_minimal()+
+  theme(
+    #plot.background = element_rect(fill = "black",colour="white"),
+    #panel.background = element_rect(fill = "black", colour="white"),
+    #panel.grid = element_line(colour="dimgray"),
+    legend.position="none"#,
+    #title = element_text(colour="white")
+    )+
+  scale_y_continuous(#label=comma
+    )
+
+with_nyc_covid_total_pct<-with_nyc%>%
+  mutate(trump_margin_binned = case_when(trump_margin<(-.20)~(-.20),
+                                         trump_margin>(.20)~.20,
+                                         TRUE~trump_margin))%>%
+  group_by(date,trump_margin_binned)%>%
+  summarise(cases=sum(cases))%>%
+  ungroup()%>%
+  filter(date>=as.Date("02-26-2020",format("%m-%d-%Y")))%>%
+  ggplot(aes(x=date,y=cases,fill=trump_margin_binned))+
+  geom_bar(stat="identity",position="fill",width=1)+
+  scale_fill_gradient2(low="blue",mid="grey",high="red",label=percent)+
+  labs(y="Share of COVID Cases",fill="Trump victory\nmargin",
+       x=NULL#,
+       #title = "Daily COVID case increases by 2016 Pres vote\n(excludes NYC)"
+       #caption = "Sources: https://github.com/john-guerra/US_Elections_Results,https://github.com/nytimes/covid-19-data"
+       )+
+  guides(fill = guide_colourbar(barwidth = 15, barheight = 1))+
+  theme_minimal()+
+  theme(
+    #plot.background = element_rect(fill = "black",colour="white"),
+    #panel.background = element_rect(fill = "black", colour="white"),
+    #panel.grid = element_line(colour="dimgray"),
+    legend.position="bottom"#,
+    #legend.text = element_text(colour="white"),
+    #title = element_text(colour="white")
+    )+
+  scale_y_continuous(label=percent_format(suffix="%     "))
+
+
+grid.arrange(with_nyc_covid_total_num,with_nyc_covid_total_pct)
+```

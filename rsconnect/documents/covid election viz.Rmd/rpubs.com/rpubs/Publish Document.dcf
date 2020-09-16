@@ -1,0 +1,10 @@
+name: Publish Document
+title:
+username:
+account: rpubs
+server: rpubs.com
+hostUrl: rpubs.com
+appId: https://api.rpubs.com/api/v1/document/661441/c6bdde840d6d41a1a5c6ad0b60f634fe
+bundleId: https://api.rpubs.com/api/v1/document/661441/c6bdde840d6d41a1a5c6ad0b60f634fe
+url: http://rpubs.com/dkori/661441/edit
+when: 1600271109.19722
