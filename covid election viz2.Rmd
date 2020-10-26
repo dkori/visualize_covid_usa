@@ -232,9 +232,11 @@ deaths_num<-with_election%>%
   arrange(date,.by_group = TRUE)%>%
   mutate(new_deaths = deaths - lag(deaths,default = 0))%>%
   ungroup()%>%
+  filter(new_deaths>0)%>%
   group_by(date,trump_margin_binned)%>%
   summarise(deaths=sum(new_deaths))%>%
   ungroup()%>%
+  arrange(desc(trump_margin_binned))%>%
   filter(date>=as.Date("02-26-2020",format("%m-%d-%Y")))%>%
   ggplot(aes(x=date,y=deaths,fill=trump_margin_binned))+
   geom_bar(stat="identity",position="stack",width=1)+
@@ -263,11 +265,13 @@ deaths_pct<-with_election%>%
   arrange(date,.by_group = TRUE)%>%
   mutate(new_deaths = deaths - lag(deaths,default = 0))%>%
   ungroup()%>%
+  filter(new_deaths>0)%>%
   group_by(date,trump_margin_binned)%>%
   summarise(deaths=sum(new_deaths))%>%
   ungroup()%>%
+  arrange(desc(trump_margin_binned))%>%
   filter(date>=as.Date("02-26-2020",format("%m-%d-%Y")))%>%
-  filter(deaths>=0)%>%
+  #filter(deaths>=0)%>%
   ggplot(aes(x=date,y=deaths,fill=trump_margin_binned))+
   geom_bar(stat="identity",position="fill",width=1)+
   scale_fill_gradient2(low="blue",mid="grey",high="red",label=percent)+
@@ -283,7 +287,8 @@ deaths_pct<-with_election%>%
     legend.position="bottom",
     #title = element_text(colour="white")
     )+
-  scale_y_continuous(label=percent_format(suffix="% "))
+  scale_y_continuous(label=percent_format(suffix="% "))+
+  geom_hline(yintercept=.5)
 
 
 grid.arrange(deaths_num,deaths_pct)
@@ -419,9 +424,11 @@ with_nyc_covid_num<-with_nyc%>%
   group_by(date,trump_margin_binned)%>%
   summarise(new_cases=sum(new_cases))%>%
   ungroup()%>%
+  arrange(desc(trump_margin_binned))%>%
+  #mutate(trump_margin_binned = 0-trump_margin_binned)%>%
   filter(date>=as.Date("02-26-2020",format("%m-%d-%Y")))%>%
   ggplot(aes(x=date,y=new_cases,fill=trump_margin_binned))+
-  geom_bar(stat="identity",position="stack",width=1)+
+  geom_bar(stat="identity",position=position_stack(reverse=TRUE),width=1)+
   scale_fill_gradient2(low="blue",mid="grey",high="red",label=percent)+
   labs(y="Net increase in\nCOVID cases",fill="County Trump\nvictory margin",
        x = NULL,
@@ -453,9 +460,11 @@ with_nyc_covid_pct<-with_nyc%>%
   group_by(date,trump_margin_binned)%>%
   summarise(new_cases=sum(new_cases))%>%
   ungroup()%>%
+  arrange(desc(trump_margin_binned))%>%
+  #mutate(trump_margin_binned = 0 -trump_margin_binned)%>%
   filter(date>=as.Date("02-26-2020",format("%m-%d-%Y")))%>%
   ggplot(aes(x=date,y=new_cases,fill=trump_margin_binned))+
-  geom_bar(stat="identity",position="fill",width=1)+
+  geom_bar(stat="identity",position=position_fill(reverse=TRUE),width=1)+
   scale_fill_gradient2(low="blue",mid="grey",high="red",label=percent)+
   labs(y="Share of COVID\ncase increase",fill="Trump victory\nmargin",
        x=NULL#,
@@ -472,7 +481,8 @@ with_nyc_covid_pct<-with_nyc%>%
     #legend.text = element_text(colour="white"),
     #title = element_text(colour="white")
     )+
-  scale_y_continuous(label=percent_format(suffix="% "))
+  scale_y_continuous(label=percent_format(suffix="% "))+
+  geom_hline(yintercept=.5)
 
 
 grid.arrange(with_nyc_covid_num,with_nyc_covid_pct)
@@ -480,7 +490,7 @@ grid.arrange(with_nyc_covid_num,with_nyc_covid_pct)
 
 ```
 
-Chart plotting all covid cases, not just new cases (so accounting for deaths/recoveries)
+Chart plotting all covid cases, not just new cases (no accounting for deaths/recoveries)
 
 ```{r total_covid_cases}
 with_nyc_covid_total_num<-with_nyc%>%
