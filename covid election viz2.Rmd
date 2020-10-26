@@ -338,8 +338,7 @@ new_covid_pct_urban<-with_urban%>%
   ggplot(aes(x=date,y=new_cases,fill=pct_urban))+
   geom_bar(stat="identity",position="fill",width=1)+
   #scale_fill_gradient2(low="blue",mid="grey",high="red",label=percent)+
-  scale_fill_viridis_c(direction=(-1),
-                       option = "inferno")+
+  scale_fill_viridis_c(direction=(-1))+
   labs(y="Share of COVID\ncase increase",fill="County Urban\nPop. Share",
        x=NULL#,
        #title = "Daily COVID case increases by 2016 Pres vote\n(excludes NYC)"
