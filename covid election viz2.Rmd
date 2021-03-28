@@ -26,23 +26,33 @@ options(tigris_use_cache = TRUE)
 
 ```{r data_prep, include=FALSE}
 # read in NYT covid data
-US<-read_csv(url("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv"))%>%
+download.file('https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv','covid_county.csv')
+US<-read_csv('covid_county.csv')#%>%
   #filter out territories
-  filter(!state%in%c("Puerto Rico","Virgin Islands","Guam","Northern Mariana Islands"))
+#  filter(!state%in%c("Puerto Rico","Virgin Islands","Guam","Northern Mariana Islands"))
 
-acs18_vars<-load_variables(year=2017,dataset="acs5")
+acs18_vars<-load_variables(year=2017,dataset="acs5",cache=TRUE)
 census_sf1_vars<-load_variables(year=2010,dataset="sf1")
 
 #read in 2016 election results
-election16<-read_csv(url("https://raw.githubusercontent.com/john-guerra/US_Elections_Results/master/2016_US_County_Level_Presidential_Results.csv"))%>%
+# election16<-read_csv(url("https://raw.githubusercontent.com/john-guerra/US_Elections_Results/master/2016_US_County_Level_Presidential_Results.csv"))%>%
+download.file("https://dataverse.harvard.edu/api/access/datafile/3641280?format=tab&gbrecs=true",'election.csv')
+election16<-read_tsv('election.csv')
+
+
+election16_reshaped<-election16%>%
+  filter(year==2016)%>%
   #make fips character
-  mutate(GEOID= case_when(combined_fips<=9999~paste0("0",combined_fips),
-                          TRUE~paste0(combined_fips)))%>%
+  mutate(GEOID= case_when(FIPS<9999~paste0("0",FIPS),
+                          TRUE~paste0(FIPS)))%>%
+  select(GEOID,county,state_po,party,candidatevotes)%>%
+  spread(key=party,value=candidatevotes)%>%
+  mutate(totalvotes = democrat+republican)%>%
   #since some states have multiple rows per county, aggregate up to County level
-  group_by(GEOID,county_name,state_abbr)%>%
-  summarise(votes_total = sum(total_votes),
-            votes_dem = sum(votes_dem),
-            votes_gop = sum(votes_gop))%>%
+  group_by(GEOID,county,state_po)%>%
+  summarise(votes_total = sum(totalvotes),
+            votes_dem = sum(democrat),
+            votes_gop = sum(republican))%>%
   ungroup()%>%
   #recalculate percentages
   mutate(per_dem = votes_dem/votes_total,
@@ -50,7 +60,7 @@ election16<-read_csv(url("https://raw.githubusercontent.com/john-guerra/US_Elect
 
 #merge rural_election with covid data
 with_election<-US%>%
-  inner_join(election16,by=c("fips" = "GEOID"))%>%
+  inner_join(election16_reshaped,by=c("fips" = "GEOID"))%>%
   mutate(trump_margin=per_gop-per_dem)
 
 
@@ -66,7 +76,7 @@ retrieve_urban<-function(state){
 }
 
 census_urban<-do.call(rbind,
-                      lapply(unique(US$state),retrieve_urban))
+                      lapply(state.name,retrieve_urban))
 
 with_urban<-US%>%
   inner_join(census_urban,by=c("fips" = "GEOID"))%>%
@@ -369,12 +379,9 @@ nyc_covid<-US%>%
   filter(county=="New York City")%>%
   mutate(fips="NYC")
 # calculate Trump share in NYC counties
-nyc_election<-election16%>%
-  filter(state_abbr=="NY")%>%
-  filter(county_name%in%c("New York County","Kings County","Bronx County","Richmond County", "Queens County"))%>%
-  summarise(votes_total = sum(votes_total),
-            votes_dem = sum(votes_dem),
-            votes_gop = sum(votes_gop))%>%
+nyc_election<-election16_reshaped%>%
+  filter(state_po=="NY")%>%
+  filter(county%in%c("New York","Kings","Bronx","Richmond", "Queens"))%>%
   mutate(per_dem = votes_dem/votes_total,
          per_gop = votes_gop/votes_total,
          trump_margin=per_gop-per_dem,
